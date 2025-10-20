@@ -28,13 +28,20 @@ class Bitget(CEX):
     def call_withdraw(self, exchange_instance) -> Optional[bool]:
         try:
             self.amount = round(self.amount, 4)
+            self.exchange_instance.load_markets()
+            curr = self.exchange_instance.currencies.get(self.token.upper(), {})
+            networks = (curr or {}).get('networks', {})
+            for network in networks.keys():
+                if network.startswith(self.chain[:3].upper()):
+                    self.chain = network
+
             self.exchange_instance.withdraw(
                 code=self.token.upper(),
                 amount=self.amount,
-                address=self.to_address.lower(),
+                address=self.to_address,
                 tag=None,
                 params={
-                    'network': self.chain.upper()
+                    'network': self.chain,
                 }
             )
             logger.success(

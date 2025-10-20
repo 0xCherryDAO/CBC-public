@@ -55,8 +55,12 @@ class CEX(ABC, Account, CurlCffiClient):
         self.reinitialize_proxy_clients()
 
     def reinitialize_proxy_clients(self):
-        Account.__init__(self, private_key=self.private_key, proxy=self.proxy, rpc=self.rpc)
-        CurlCffiClient.__init__(self, proxy=self.proxy)
+        if self.proxy and not isinstance(self.proxy, Proxy):
+            proxy_obj = Proxy(proxy_url=self.proxy)
+        else:
+            proxy_obj = self.proxy
+        Account.__init__(self, private_key=self.private_key, proxy=proxy_obj, rpc=self.rpc)
+        CurlCffiClient.__init__(self, proxy=proxy_obj)
 
     @abstractmethod
     def call_withdraw(self, exchange_instance) -> Optional[bool]:

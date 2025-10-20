@@ -21,7 +21,8 @@ tokens = {
     'ARB': {
         'ETH': None,
         'WETH': '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
-        'USDC': '0xaf88d065e77c8cc2239327c5edb3a432268e5831'
+        'USDC': '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
+        'USDT': '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9'
     },
     'OP': {
         'ETH': None,
