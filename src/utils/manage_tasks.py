@@ -1,0 +1,19 @@
+from eth_typing import ChecksumAddress
+
+from src.database.base_models.pydantic_manager import DataBaseManagerConfig
+from src.database.utils.db_manager import DataBaseUtils
+
+
+async def manage_tasks(private_key: bytes, address: ChecksumAddress, task: str) -> None:
+    db_utils = DataBaseUtils(
+        manager_config=DataBaseManagerConfig(
+            action='wallets_tasks'
+        )
+    )
+
+    await db_utils.add_to_db(
+        private_key=private_key,
+        address=address,
+        task_name=task,
+        status='completed'
+    )

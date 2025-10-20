@@ -1,0 +1,191 @@
+import types
+import asyncio
+
+from typing import (
+    Optional,
+    Type,
+    Any,
+)
+
+from sqlalchemy import select, delete
+from sqlalchemy.sql import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import sessionmaker
+from loguru import logger
+
+from src.database.base_models.pydantic_manager import DataBaseManagerConfig
+from src.database.models import engine, WorkingWallets, WalletsTasks, Forks
+
+
+class DataBaseUtils:
+    db_lock = asyncio.Lock()
+
+    def __init__(
+            self,
+            manager_config: DataBaseManagerConfig
+    ) -> None:
+        self.session = sessionmaker(
+            bind=engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
+        self.table_object = manager_config.calculated_table_object
+
+    async def __aenter__(self) -> 'DataBaseUtils':
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_value: Optional[BaseException],
+                        traceback: Optional[types.TracebackType]) -> None:
+        await self.session.close()
+
+    async def add_to_db(
+            self,
+            private_key: bytes,
+            address: str,
+            salt: bytes = None,
+            proxy: str = None,
+            recipient_address: str = None,
+            *,
+            status: str,
+            task_name: str | None = None,
+    ) -> None:
+        async with self.db_lock:
+            async with self.session() as session:
+                query = select(self.table_object).filter_by(private_key=private_key)
+
+                if task_name and self.table_object is WalletsTasks:
+                    query = query.filter_by(task_name=task_name)
+
+                result = await session.execute(query)
+                existing_entry = result.scalars().first()
+
+                if existing_entry:
+                    existing_entry.status = status
+                    logger.info(f'🔄 | Updated existing entry '
+                                f'with private_key={private_key[:4]}...{private_key[-4:]} and task_name={task_name}')
+                else:
+                    transaction = self.table_object(
+                        address=address,
+                        private_key=private_key,
+                        status=status
+                    )
+                    if self.table_object is WorkingWallets:
+                        transaction.salt = salt
+                        transaction.proxy = proxy
+                        transaction.recipient = recipient_address
+
+                    if self.table_object is WalletsTasks:
+                        transaction.task_name = task_name
+
+                    session.add(transaction)
+                    if task_name:
+                        logger.success(
+                            f'✔️ | Successfully added new entry to DataBase '
+                            f'with private_key={private_key[:4]}...{private_key[-4:]} and task_name={task_name}'
+                        )
+
+                await session.commit()
+
+                if self.table_object is WalletsTasks and status == 'completed':
+                    await self.check_and_update_working_wallets(private_key, session)
+
+    async def get_tasks_info(self, private_key: bytes) -> tuple[list[str], list[str]]:
+        completed_tasks = await self.get_wallet_completed_tasks(private_key)
+        uncompleted_tasks = await self.get_wallet_pending_tasks(private_key)
+        return completed_tasks, uncompleted_tasks
+
+    @staticmethod
+    async def check_and_update_working_wallets(private_key: bytes, session) -> None:
+        query = select(WalletsTasks).filter_by(private_key=private_key, status='pending')
+        result = await session.execute(query)
+        pending_tasks = result.scalars().all()
+
+        if not pending_tasks:
+            query = select(WorkingWallets).filter_by(private_key=private_key)
+            result = await session.execute(query)
+            working_wallet = result.scalars().first()
+
+            if working_wallet:
+                working_wallet.status = 'completed'
+                await session.commit()
+                logger.info(f'✔️ | Updated working_wallets entry to completed for '
+                            f'private_key={private_key[:4]}...{private_key[-4:]}')
+
+    async def get_uncompleted_wallets(self):
+        async with self.session() as session:
+            query = select(WorkingWallets).filter_by(status='pending')
+            result = await session.execute(query)
+            wallets = result.scalars().all()
+
+        return wallets
+
+    async def get_wallet_pending_tasks(self, private_key: bytes) -> list[str]:
+        async with self.session() as session:
+            query = select(WalletsTasks).filter_by(private_key=private_key, status='pending')
+            result = await session.execute(query)
+            tasks = result.scalars().all()
+
+        return tasks
+
+    async def get_wallet_completed_tasks(self, private_key: bytes) -> list[str]:
+        async with self.session() as session:
+            query = select(WalletsTasks).filter_by(private_key=private_key, status='completed')
+            result = await session.execute(query)
+            tasks = result.scalars().all()
+
+        return tasks
+
+    async def get_completed_wallets_count(self) -> int:
+        async with self.session() as session:
+            query = select(func.count()).select_from(WorkingWallets).filter_by(status="completed")
+            result = await session.execute(query)
+            return result.scalar()
+
+    async def get_total_wallets_count(self) -> int:
+        async with self.session() as session:
+            query = select(func.count()).select_from(WorkingWallets)
+            result = await session.execute(query)
+            return result.scalar()
+
+    async def fill_forks_table(self, forks_by_symbol: dict[str, Any]):
+        async with self.db_lock:
+            async with self.session() as session:
+                await session.execute(delete(Forks))
+
+                for symbol, data in forks_by_symbol.items():
+                    fork_entry = Forks(
+                        symbol=symbol,
+                        accounts=data['accounts'],
+                        forks={
+                            'long': data['long'],
+                            'short': data['short']
+                        },
+                        status='pending'
+                    )
+                    session.add(fork_entry)
+
+                    logger.success(f'Added {symbol} forks data')
+
+                    await session.commit()
+
+    async def get_uncompleted_forks(self):
+        async with self.session() as session:
+            query = select(Forks).filter_by(status='pending')
+            result = await session.execute(query)
+            wallets = result.scalars().all()
+
+        return wallets
+
+    async def update_fork_status(self, task_id: int):
+        query = select(Forks).filter_by(id=task_id)
+        async with self.db_lock:
+            async with self.session() as session:
+                result = await session.execute(query)
+                existing_entry = result.scalars().first()
+
+                if existing_entry:
+                    existing_entry.status = 'completed'
+                    logger.info(f'🔄 | Updated existing entry for fork id: {task_id}')
+                    await session.commit()

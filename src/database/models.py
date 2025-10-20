@@ -1,0 +1,58 @@
+import logging
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy import (
+    Sequence,
+    Integer,
+    Column,
+    String,
+    LargeBinary,
+)
+
+Base = declarative_base()
+
+
+class WorkingWallets(Base):
+    __tablename__ = 'working_wallets'
+    id = Column(Integer, Sequence('working_wallets_id_seq'), primary_key=True)
+    address = Column(String, nullable=False)
+    private_key = Column(LargeBinary, nullable=False)
+    recipient = Column(String, nullable=True)
+    salt = Column(LargeBinary, nullable=False)
+    proxy = Column(String, nullable=True)
+
+    status = Column(String)
+
+
+class WalletsTasks(Base):
+    __tablename__ = 'wallets_tasks'
+
+    id = Column(Integer, Sequence('wallets_tasks_id_seq'), primary_key=True)
+    address = Column(String, unique=False)
+    private_key = Column(String, unique=False)
+    task_name = Column(String, unique=False)
+    status = Column(String, unique=False)
+
+
+class Forks(Base):
+    __tablename__ = 'forks'
+
+    id = Column(Integer, Sequence('forks_id_seq'), primary_key=True)
+    symbol = Column(String, unique=False)
+    accounts = Column(JSON, unique=False)
+    forks = Column(JSON, unique=False)
+    status = Column(String, unique=False)
+
+
+logging.getLogger('sqlalchemy.engine').setLevel(logging.ERROR)
+
+engine = create_async_engine(
+    'sqlite+aiosqlite:///transactions.db',
+    echo=False
+)
+
+
+async def init_models(engine: AsyncEngine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
