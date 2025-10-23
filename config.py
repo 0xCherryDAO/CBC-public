@@ -20,11 +20,13 @@ JUMPER_BRIDGE = False  # Настройка в JumperBridgeSettings
 class RelayBridgeSettings:
     from_chain = ['BASE', 'OP', 'ARB']
     to_chain = ['ETH']
-    to_token = ['WBTC', 'TBTC', 'CBBTC']
+
+    from_token = ['USDC']
+    to_token = ['ETH']
 
     amount = [0.0002, 0.0004]  # Кол-во ETH [от, до]
-    use_percentage = False  # Использовать ли процент от баланса вместо amount
-    bridge_percentage = [0.1, 0.1]  # Процент от баланса. 0.1 - это 10%, 0.27 - это 27% и т.д.
+    use_percentage = True  # Использовать ли процент от баланса вместо amount
+    bridge_percentage = [1, 1]  # Процент от баланса. 0.1 - это 10%, 0.27 - это 27% и т.д.
 
     to_token_min_balances = {
         'ARB': {
@@ -37,7 +39,7 @@ class JumperBridgeSettings:
     from_chain = ['ARB']
     to_chain = ['ARB']
 
-    from_token = ['USDC']
+    from_token = ['USDT']
     to_token = ['ETH']
 
     amount = [0.0002, 0.0004]  # Кол-во ETH [от, до]
@@ -51,11 +53,11 @@ class JumperBridgeSettings:
     }
 
 
-class CEXWithdrawSettings:  # Вывод с ОКХ на кошельки
+class CEXWithdrawSettings:  # Вывод с CEX на кошельки
     cex = 'Bitget'  # Binance/OKX/Bitget
-    chain = ['Base', 'Optimism']  # 'Base' / 'Optimism' / 'Arbitrum One'
-    token = 'USDC'
-    amount = [0.001, 0.002]
+    to_chain = ['Arbitrum One']  # 'Base' / 'Optimism' / 'Arbitrum One'
+    to_token = 'USDT'
+    amount = [10, 10]
 
     to_token_min_balances = {
         'Arbitrum One': {

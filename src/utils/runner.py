@@ -226,25 +226,29 @@ async def _process_bridge(route: Route, settings: Any, BridgeCls: Type) -> Optio
     use_percentage = bool(getattr(settings, "use_percentage", False))
     bridge_percentage = getattr(settings, "bridge_percentage", 0)
 
-    from_token = getattr(settings, "from_token")
+    from_token = _as_list(getattr(settings, "from_token"))
     to_token = getattr(settings, "to_token")
 
-    bridge = BridgeCls(
-        private_key=route.wallet.private_key,
-        proxy=route.wallet.proxy,
-        bridge_config=_build_bridge_config(
-            from_chain=from_chain,
-            to_chain=to_chain,
-            from_token=from_token,
-            to_token=to_token,
-            amount=amount,
-            use_percentage=use_percentage,
-            bridge_percentage=bridge_percentage,
-        ),
-    )
+    bridged = None
+    for token in from_token:
+        bridge = BridgeCls(
+            private_key=route.wallet.private_key,
+            proxy=route.wallet.proxy,
+            bridge_config=_build_bridge_config(
+                from_chain=from_chain,
+                to_chain=to_chain,
+                from_token=token,
+                to_token=to_token,
+                amount=amount,
+                use_percentage=use_percentage,
+                bridge_percentage=bridge_percentage,
+            ),
+        )
+        logger.debug(bridge)
+        bridged = await bridge.bridge()
+        await sleep(5)
 
-    logger.debug(bridge)
-    return await bridge.bridge()
+    return bridged
 
 
 async def process_relay_bridge(route: Route) -> Optional[bool]:
