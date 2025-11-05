@@ -98,7 +98,7 @@ class CEX(ABC, Account, CurlCffiClient):
         decimals = 18
         if not is_native:
             token_contract = self.web3.eth.contract(
-                address=self.web3.to_checksum_address(tokens[self.token.upper()]),
+                address=self.web3.to_checksum_address(tokens[chain_symbol][self.token.upper()]),
                 abi=ERC20.abi
             )
             decimals = await token_contract.functions.decimals().call()
