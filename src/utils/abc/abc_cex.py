@@ -107,7 +107,7 @@ class CEX(ABC, Account, CurlCffiClient):
 
         if not is_native:
             token_contract = self.load_contract(
-                address=tokens[self.token.upper()],
+                address=tokens[chain_symbol][self.token.upper()],
                 web3=self.web3,
                 abi=ERC20.abi
             )
